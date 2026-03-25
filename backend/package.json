@@ -3,7 +3,7 @@
     "dev": "ts-node-dev --respawn --transpile-only src/server.ts",
     "dev:nodemon": "nodemon --exec \"ts-node src/server.ts\"",
     "start": "node dist/server.js",
-    "build": "tsc",
+    "build": "npm run prisma:generate && tsc",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "test": "echo \"Tests will be added\" && exit 0"
