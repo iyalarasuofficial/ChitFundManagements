@@ -1,0 +1,127 @@
+  generator client {
+    provider = "prisma-client-js"
+    
+  }   
+
+
+  datasource db {
+    provider = "postgresql"
+  }
+
+
+  model User {
+    id            Int           @id @default(autoincrement())
+    name          String
+    phone         String        @unique
+    email         String?       @unique
+    passwordHash  String
+    createdAt     DateTime      @default(now())
+    updatedAt     DateTime      @updatedAt
+    isActive      Boolean       @default(true)
+    walletBalance Float         @default(0)
+
+    groupMembers  GroupMember[]
+    createdGroups ChitGroup[]   @relation("CreatedBy")
+  }
+
+  model ChitGroup {
+    id                  Int           @id @default(autoincrement())
+    name                String
+    contributionAmount  Float
+    totalMembers        Int           @default(1)
+    durationMonths      Int
+    organizerFeePercent Float         @default(5)
+    startDate           DateTime
+    endDate             DateTime?
+    currentCycle        Int           @default(1)
+    status              String        @default("pending")
+    currentPotAmount    Float         @default(0)
+    organizerEarnings   Float         @default(0)
+    createdAt           DateTime      @default(now())
+    updatedAt           DateTime      @updatedAt
+
+    createdBy           Int
+    creator             User          @relation("CreatedBy", fields: [createdBy], references: [id])
+
+    groupMembers        GroupMember[]
+    auctions            Auction[]
+
+    @@index([createdBy])
+  }
+
+  model GroupMember {
+    id              Int            @id @default(autoincrement())
+    groupId         Int
+    userId          Int
+    role            String
+    joinedAt        DateTime       @default(now())
+    leftAt          DateTime?
+    status          String         @default("active")
+    arrearsAmount   Float          @default(0)
+    dividendCredit  Float          @default(0)
+    suretyDetails   String?
+
+    group           ChitGroup      @relation(fields: [groupId], references: [id])
+    user            User           @relation(fields: [userId], references: [id])
+
+    contributions   Contribution[]
+    auctionsWon     Auction[]      @relation("Winner")
+    bids            Bid[]
+
+    @@unique([groupId, userId])
+    @@index([userId])
+  }
+
+  model Contribution {
+    id              Int           @id @default(autoincrement())
+    groupMemberId   Int
+    cycleNumber     Int
+    amountDue       Float
+    adjustedDue     Float
+    amountPaid      Float         @default(0)
+    paymentDate     DateTime?
+    dueDate         DateTime?
+    status          String        @default("pending")
+    penaltyAmount   Float         @default(0)
+    isArrear        Boolean       @default(false)
+    transactionId   String?
+    paymentMethod   String?
+
+    member          GroupMember   @relation(fields: [groupMemberId], references: [id])
+
+    @@index([groupMemberId, cycleNumber])
+  }
+
+  model Auction {
+    id                   Int           @id @default(autoincrement())
+    groupId              Int
+    cycleNumber          Int
+    startTime            DateTime
+    endTime              DateTime
+    status               String        @default("pending")
+    winnerGroupMemberId  Int?
+    discountAmount       Float         @default(0)
+    payoutAmount         Float?
+    dividendPerMember    Float         @default(0)
+
+    group                ChitGroup     @relation(fields: [groupId], references: [id])
+    winner               GroupMember?  @relation("Winner", fields: [winnerGroupMemberId], references: [id])
+    bids                 Bid[]
+
+    @@unique([groupId, cycleNumber])
+    @@index([winnerGroupMemberId])
+  }
+
+  model Bid {
+    id            Int         @id @default(autoincrement())
+    auctionId     Int
+    groupMemberId Int
+    bidAmount     Float
+    createdAt     DateTime    @default(now())
+
+    auction       Auction     @relation(fields: [auctionId], references: [id])
+    member        GroupMember @relation(fields: [groupMemberId], references: [id])
+
+    @@index([auctionId])
+    @@index([groupMemberId])
+  }
