@@ -1,7 +1,11 @@
 import api from './api';
 import { io } from 'socket.io-client';
 
-const apiBaseUrl = import.meta.env.VITE_API_URL || 'http://localhost:3001/';
+const apiBaseUrl = import.meta.env.VITE_API_URL;
+if (!apiBaseUrl) {
+  throw new Error('VITE_API_URL is required. Set it in frontend environment variables.');
+}
+
 const defaultSocketOrigin = new URL(apiBaseUrl, window.location.origin).origin;
 const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || defaultSocketOrigin;
 
