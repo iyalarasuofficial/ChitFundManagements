@@ -13,6 +13,8 @@ import { ContributionDetailPage } from './pages/contributions/ContributionDetail
 import { CreateGroupPage } from './pages/groups/CreateGroupPage';
 import { NotFoundPage } from './pages/NotFoundPage';
 import { OrganizerUnpaidMembersPage } from './pages/dashboard/OrganizerUnpaidMembersPage';
+import { useAuth } from './hooks/useAuth';
+import { PageLoader } from './features/common/PageLoader';
 
 const ProtectedShell = () => (
   <>
@@ -22,8 +24,16 @@ const ProtectedShell = () => (
 );
 
 function App() {
+  const { isAuthenticated, isLoading } = useAuth();
+
+  if (isLoading) {
+    return <PageLoader title="Loading" subtitle="Checking your session..." />;
+  }
+
   return (
     <Routes>
+      <Route path="/" element={<Navigate to={isAuthenticated ? '/home' : '/login'} replace />} />
+
       {/* Public routes */}
       <Route path="/login" element={<LoginPage />} />
       <Route path="/signup" element={<SignupPage />} />
