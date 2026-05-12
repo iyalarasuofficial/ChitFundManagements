@@ -67,7 +67,7 @@ export const getClientErrorMessage = (
     }
   }
 
-  if (status === 401) return 'Your session expired. Please log in again.';
+  if (status === 401) return 'Invalid credentials';
   if (status === 403) return 'You are not allowed to perform this action.';
   if (status === 404) return 'The requested data was not found.';
   if (status === 409) return 'This action conflicts with existing data.';

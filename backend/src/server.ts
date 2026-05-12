@@ -1,11 +1,9 @@
-// server.ts (main entry point for backend)
-
-// Load environment variables FIRST before any other imports
 import 'dotenv/config';
 
-import express, { Application, Request, Response } from 'express';
+import express, { Application, Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
+import rateLimit, { ipKeyGenerator } from 'express-rate-limit';
 import http from 'http';
 import { Server as SocketIOServer } from 'socket.io';
 import { prisma } from './config/db';
@@ -21,17 +19,80 @@ const server = http.createServer(app);
 
 export const io = new SocketIOServer(server, {
   cors: {
-    origin: '*'
+    origin: process.env.CORS_ORIGIN || 'http://localhost:5173',
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE']
   }
 });
 
-// Middleware
-app.use(helmet());
-app.use(cors());
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'"],
+      styleSrc: ["'self'"],
+      imgSrc: ["'self'", "data:", "https:"],
+      connectSrc: ["'self'", "ws://localhost:5173", "wss://localhost:5173", "http://localhost:3001", "https:"],
+      frameSrc: ["'none'"],
+    },
+  },
+  hsts: {
+    maxAge: 31536000,
+    includeSubDomains: true,
+    preload: true,
+  },
+  frameguard: { action: 'deny' },
+  referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
+  noSniff: true,
+}));
 
-// Health check route
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  skip: (req: Request) => process.env.NODE_ENV === 'development',
+  keyGenerator: (req: Request) => {
+    const ip = ipKeyGenerator(req);
+    return `${ip}-${req.body?.phone || 'unknown'}`;
+  },
+  handler: (req: Request, res: Response) => {
+    res.status(429).json({
+      success: false,
+      message: 'Too many login/signup attempts. Please try again after 15 minutes.'
+    });
+  }
+});
+
+const apiLimiter = rateLimit({
+  windowMs: 1 * 60 * 1000,
+  max: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+  skip: (req: Request) => process.env.NODE_ENV === 'development',
+  keyGenerator: (req: Request) => {
+    const ip = ipKeyGenerator(req);
+    return ip;
+  },
+  handler: (req: Request, res: Response) => {
+    res.status(429).json({
+      success: false,
+      message: 'Too many requests. Please try again later.'
+    });
+  }
+});
+
+app.use(cors({
+  origin: process.env.CORS_ORIGIN || 'http://localhost:5173',
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  optionsSuccessStatus: 200
+}));
+
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+
 app.get('/health', (req: Request, res: Response) => {
   res.status(200).json({
     status: 'ok',
@@ -45,15 +106,14 @@ app.get('/', (req: Request, res: Response) => {
   res.send('Welcome to Chit Fund Management System (CFMS) Backend');
 });
 
-// REST routes
-app.use('/auth', authRoutes);
-app.use('/groups', groupRoutes);
-app.use('/', contributionRoutes);
-app.use('/auctions', auctionRoutes);
-app.use('/dashboard', dashboardRoutes);
-app.use('/wallet', walletRoutes);
+app.use('/auth', authLimiter, authRoutes);
 
-// 404 handler for undefined routes
+app.use('/groups', apiLimiter, groupRoutes);
+app.use('/', apiLimiter, contributionRoutes);
+app.use('/auctions', apiLimiter, auctionRoutes);
+app.use('/dashboard', apiLimiter, dashboardRoutes);
+app.use('/wallet', apiLimiter, walletRoutes);
+
 app.use((req: Request, res: Response) => {
   res.status(404).json({
     success: false,
@@ -61,8 +121,15 @@ app.use((req: Request, res: Response) => {
   });
 });
 
-// Global error handler
-app.use((err: any, req: Request, res: Response, next: any) => {
+app.use((err: any, req: Request, res: Response, next: NextFunction) => {
+  if (err.status === 429) {
+    return res.status(429).json({
+      success: false,
+      message: err.message || 'Too many requests. Please try again later.',
+      retryAfter: err.retryAfter
+    });
+  }
+
   console.error('Error:', err);
   res.status(err.status || 500).json({
     success: false,
@@ -71,7 +138,6 @@ app.use((err: any, req: Request, res: Response, next: any) => {
   });
 });
 
-// Socket.io namespace for auctions
 io.of('/auction').on('connection', (socket) => {
   console.info('Client connected to auction namespace:', socket.id);
   
@@ -85,13 +151,12 @@ io.of('/auction').on('connection', (socket) => {
   });
 });
 
-// Test connection at startup
 async function testDbConnection() {
   try {
     await prisma.$connect();
     console.info('PostgreSQL connected successfully');
   } catch (error) {
-    console.error('❌ Database connection failed:', error);
+    console.error(' Database connection failed:', error);
     process.exit(1);
   }
 }

@@ -176,18 +176,17 @@ export const login = async (req: Request, res: Response): Promise<void> => {
     if (!user) {
       res.status(401).json({ 
         success: false, 
-        message: 'Invalid credentials' 
+        message: 'Invalid phone or password' 
       });
       return;
     }
 
-    // Verify password
     const isPasswordValid = await bcrypt.compare(password, user.passwordHash);
 
     if (!isPasswordValid) {
       res.status(401).json({ 
         success: false, 
-        message: 'Invalid credentials' 
+        message: 'Invalid phone or password' 
       });
       return;
     }
