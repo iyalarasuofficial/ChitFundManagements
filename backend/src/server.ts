@@ -53,7 +53,8 @@ const authLimiter = rateLimit({
   legacyHeaders: false,
   skip: (req: Request) => process.env.NODE_ENV === 'development',
   keyGenerator: (req: Request) => {
-    const ip = ipKeyGenerator(req);
+    const ipAddress = req.ip || req.socket.remoteAddress || 'unknown';
+    const ip = ipKeyGenerator(ipAddress);
     return `${ip}-${req.body?.phone || 'unknown'}`;
   },
   handler: (req: Request, res: Response) => {
@@ -71,7 +72,8 @@ const apiLimiter = rateLimit({
   legacyHeaders: false,
   skip: (req: Request) => process.env.NODE_ENV === 'development',
   keyGenerator: (req: Request) => {
-    const ip = ipKeyGenerator(req);
+    const ipAddress = req.ip || req.socket.remoteAddress || 'unknown';
+    const ip = ipKeyGenerator(ipAddress);
     return ip;
   },
   handler: (req: Request, res: Response) => {
